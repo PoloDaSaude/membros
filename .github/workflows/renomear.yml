@@ -12,33 +12,28 @@ jobs:
 
       - name: Rodar Script de Renomeação
         run: |
-          echo "--- ESTRUTURA DE PASTAS ATUAL ---"
-          ls -R
-          echo "--------------------------------"
-
-          # Limpa caracteres invisíveis do Windows no CSV
+          # Limpa caracteres invisíveis do Windows
           sed -i 's/\r//g' asubstituirgithub.CSV
           
-          # Lê o CSV pulando o cabeçalho
-          tail -n +2 asubstituirgithub.CSV | while IFS=';' read -r antigo novo; do
-            # Extrai apenas o nome do arquivo (ex: martec.png) caso venha uma URL
-            arq_antigo=$(echo "$antigo" | awk -F'/' '{print $NF}' | xargs)
-            arq_novo=$(echo "$novo" | awk -F'/' '{print $NF}' | xargs)
+          # Lógica Invertida: O script vai buscar o NOME e renomear para o NÚMERO
+          tail -n +2 asubstituirgithub.CSV | while IFS=';' read -r numero link_nome; do
             
-            # Procura o arquivo em qualquer lugar do repositório
-            caminho_real=$(find . -name "$arq_antigo" -type f | head -n 1)
+            # Extrai o nome do arquivo (ex: martec.png) de dentro do link
+            nome_original=$(echo "$link_nome" | awk -F'/' '{print $NF}' | xargs)
+            nome_final=$(echo "$numero" | awk -F'/' '{print $NF}' | xargs)
             
-            if [ -z "$arq_antigo" ] || [ -z "$arq_novo" ]; then
+            if [ -z "$nome_original" ] || [ -z "$nome_final" ]; then
                 continue
             fi
 
+            # Procura o arquivo (ex: martec.png)
+            caminho_real=$(find . -name "$nome_original" -type f | head -n 1)
+            
             if [ -n "$caminho_real" ]; then
-              # Extrai a pasta onde o arquivo está para renomear no mesmo lugar
-              pasta_origem=$(dirname "$caminho_real")
-              git mv "$caminho_real" "$pasta_origem/$arq_novo"
-              echo "✅ Sucesso: $arq_antigo -> $arq_novo (em $pasta_origem)"
+              git mv "$caminho_real" "$(dirname "$caminho_real")/$nome_final"
+              echo "✅ Sucesso: $nome_original -> $nome_final"
             else
-              echo "❌ Erro: Arquivo '$arq_antigo' não encontrado em nenhuma pasta."
+              echo "❌ Erro: Não achei '$nome_original' para virar '$nome_final'"
             fi
           done
 
@@ -47,10 +42,9 @@ jobs:
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
           git add .
-          # Só faz o commit se houver mudanças para evitar erro de 'nothing to commit'
           if ! git diff --cached --quiet; then
-            git commit -m "Renomeação automática de imagens via CSV"
+            git commit -m "Renomeando nomes para numeros"
             git push
           else
-            echo "Nenhuma alteração detectada para commit."
+            echo "Nenhuma mudança para salvar."
           fi
