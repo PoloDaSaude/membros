@@ -1,26 +1,30 @@
 name: Renomear Arquivos via CSV
-on: workflow_dispatch # Permite que você aperte um botão para rodar
+on: workflow_dispatch
 
 jobs:
   rename:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Dá permissão para o robô salvar as mudanças
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Rodar Script de Renomeação
         run: |
-          # Pula a primeira linha (cabeçalho) e processa o CSV
+          # Garante que o separador seja ponto e vírgula e remove espaços/caracteres de Windows (\r)
+          sed -i 's/\r//g' asubstituirgithub.CSV
+          
           tail -n +2 asubstituirgithub.CSV | while IFS=';' read -r antigo novo; do
-            # Limpa links e caracteres estranhos
-            arq_antigo=$(basename "$antigo" | tr -d '\r' | xargs)
-            arq_novo=$(basename "$novo" | tr -d '\r' | xargs)
+            # Pega só o nome do arquivo final, removendo URLs e espaços
+            arq_antigo=$(echo "$antigo" | awk -F'/' '{print $NF}' | xargs)
+            arq_novo=$(echo "$novo" | awk -F'/' '{print $NF}' | xargs)
             
             if [ -f "$arq_antigo" ]; then
               git mv "$arq_antigo" "$arq_novo"
-              echo "Renomeado: $arq_antigo para $arq_novo"
+              echo "✅ Sucesso: $arq_antigo -> $arq_novo"
             else
-              echo "Aviso: $arq_antigo não encontrado"
+              echo "❌ Erro: Arquivo '$arq_antigo' não existe na pasta raiz."
             fi
           done
 
@@ -28,5 +32,6 @@ jobs:
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
-          git commit -m "Renomeação automática via CSV"
-          git push
+          git add .
+          # Só faz commit se houver mudanças reais
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Renomeação automática" && git push)
