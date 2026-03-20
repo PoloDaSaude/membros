@@ -5,26 +5,40 @@ jobs:
   rename:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Dá permissão para o robô salvar as mudanças
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Rodar Script de Renomeação
         run: |
-          # Garante que o separador seja ponto e vírgula e remove espaços/caracteres de Windows (\r)
+          echo "--- ESTRUTURA DE PASTAS ATUAL ---"
+          ls -R
+          echo "--------------------------------"
+
+          # Limpa caracteres invisíveis do Windows no CSV
           sed -i 's/\r//g' asubstituirgithub.CSV
           
+          # Lê o CSV pulando o cabeçalho
           tail -n +2 asubstituirgithub.CSV | while IFS=';' read -r antigo novo; do
-            # Pega só o nome do arquivo final, removendo URLs e espaços
+            # Extrai apenas o nome do arquivo (ex: martec.png) caso venha uma URL
             arq_antigo=$(echo "$antigo" | awk -F'/' '{print $NF}' | xargs)
             arq_novo=$(echo "$novo" | awk -F'/' '{print $NF}' | xargs)
             
-            if [ -f "$arq_antigo" ]; then
-              git mv "$arq_antigo" "$arq_novo"
-              echo "✅ Sucesso: $arq_antigo -> $arq_novo"
+            # Procura o arquivo em qualquer lugar do repositório
+            caminho_real=$(find . -name "$arq_antigo" -type f | head -n 1)
+            
+            if [ -z "$arq_antigo" ] || [ -z "$arq_novo" ]; then
+                continue
+            fi
+
+            if [ -n "$caminho_real" ]; then
+              # Extrai a pasta onde o arquivo está para renomear no mesmo lugar
+              pasta_origem=$(dirname "$caminho_real")
+              git mv "$caminho_real" "$pasta_origem/$arq_novo"
+              echo "✅ Sucesso: $arq_antigo -> $arq_novo (em $pasta_origem)"
             else
-              echo "❌ Erro: Arquivo '$arq_antigo' não existe na pasta raiz."
+              echo "❌ Erro: Arquivo '$arq_antigo' não encontrado em nenhuma pasta."
             fi
           done
 
@@ -33,5 +47,10 @@ jobs:
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
           git add .
-          # Só faz commit se houver mudanças reais
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Renomeação automática" && git push)
+          # Só faz o commit se houver mudanças para evitar erro de 'nothing to commit'
+          if ! git diff --cached --quiet; then
+            git commit -m "Renomeação automática de imagens via CSV"
+            git push
+          else
+            echo "Nenhuma alteração detectada para commit."
+          fi
