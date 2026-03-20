@@ -1,0 +1,32 @@
+name: Renomear Arquivos via CSV
+on: workflow_dispatch # Permite que você aperte um botão para rodar
+
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Rodar Script de Renomeação
+        run: |
+          # Pula a primeira linha (cabeçalho) e processa o CSV
+          tail -n +2 asubstituirgithub.CSV | while IFS=';' read -r antigo novo; do
+            # Limpa links e caracteres estranhos
+            arq_antigo=$(basename "$antigo" | tr -d '\r' | xargs)
+            arq_novo=$(basename "$novo" | tr -d '\r' | xargs)
+            
+            if [ -f "$arq_antigo" ]; then
+              git mv "$arq_antigo" "$arq_novo"
+              echo "Renomeado: $arq_antigo para $arq_novo"
+            else
+              echo "Aviso: $arq_antigo não encontrado"
+            fi
+          done
+
+      - name: Commit e Push
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git commit -m "Renomeação automática via CSV"
+          git push
